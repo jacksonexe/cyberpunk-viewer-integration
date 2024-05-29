@@ -1,0 +1,1 @@
+This project will allow you to connect your game of cyberpunk with your viewers. This has support for twitch only at the moment but is written to try and be platform agnostic. Right now its not well orginized as its a proof of concept more than anything but the goal is to make this work with any livestreaming platform
