@@ -1,0 +1,24 @@
+{
+    "channels": {
+        "yourchannel": {
+            "channelId": "channel id",
+            "channelName": "your channel username"
+        }
+    },
+    "cyberpunkModPath": "full path to cp-2077 mod",
+    "identity": {
+        "username": "bot username",
+        "password": "bot access token"
+    },
+    "starterPoints": 100,
+    "pointsPerInterval": 100,
+    "interval": 30000,
+    "botUsername": "bot username",
+    "useChannelPoints": true,
+    "twitchCredentials": {
+        "clientId": "your channels client id",
+        "clientSecret": "your channels client secret",
+        "refreshToken": "your channels refresh token"
+    },
+    "createChannelPointRewards": false
+}

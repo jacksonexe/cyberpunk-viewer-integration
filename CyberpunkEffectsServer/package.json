@@ -1,0 +1,20 @@
+{
+  "name": "cyberpunkeffectsserver",
+  "version": "1.0.0",
+  "description": "Websocket server for sending commands",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "jackexe",
+  "license": "MIT",
+  "dependencies": {
+    "@twurple/api": "^7.1.0",
+    "@twurple/auth": "^7.1.0",
+    "@twurple/pubsub": "^7.1.0",
+    "net": "^1.0.2",
+    "sqlite3": "^5.1.7",
+    "tmi.js": "^1.8.5",
+    "ws": "^8.17.0"
+  }
+}
