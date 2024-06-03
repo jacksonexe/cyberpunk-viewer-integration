@@ -1,0 +1,16 @@
+{
+  "name": "cyberpunk-viewer-integration",
+  "version": "1.0.0",
+  "description": "Allows the viewers to effect a streamers game",
+  "main": "index.js",
+  "dependencies": {
+    "nodemon": "^3.1.2"
+  },
+  "scripts": {
+    "setup": "cd ./CyberpunkEffectsServer && npm install",
+    "start": "node ./CyberpunkEffectsServer/src/index.js",
+    "start:dev": "nodemon ./CyberpunkEffectsServer/src/index.js"
+  },
+  "author": "jackexe",
+  "license": "MIT"
+}
