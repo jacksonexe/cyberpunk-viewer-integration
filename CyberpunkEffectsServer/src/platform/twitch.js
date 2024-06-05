@@ -14,7 +14,7 @@ export class TwitchManager {
         this.logger = logger.child({ "source": "TwitchManager" });
     }
 
-    async initClient() {
+    async initClient(executeCommand, effectManager, databaseManager, platformManager) {
         this.twitchClient = new tmi.Client({
             connection: {
                 reconnect: true
@@ -46,9 +46,8 @@ export class TwitchManager {
                     const reward = message.rewardTitle.toLowerCase().replace(/ /g, "");
                     const commandConfig = ALL_COMMANDS[reward];
                     if (reward !== undefined && message.rewardIsQueued && commandConfig !== undefined && !commandConfig.isDisabled && (!me.config.useChannelPoints || (!commandConfig.disableOnChannelPoints)) && (commandConfig.allowedPlatforms === undefined || commandConfig.allowedPlatforms.find((plat) => plat === TWITCH_PLATFORM) !== undefined)) {
-                        let execute = commandConfig.execute;
                         let params = undefined;
-                        console.log(message.message);
+                        me.logger.debug(message.message);
                         if (commandConfig.hasParams) {
                             if (message.message === undefined || message.message === "") {
                                 me.twitchClient.say(channelConfig.channelName, `@${message.userName} you have to enter values for ${message.rewardTitle}`);
@@ -60,21 +59,26 @@ export class TwitchManager {
                                     params = commandConfig.parseParams(params);
                                 }
                                 catch (e) {
-                                    console.error(e);
+                                    me.logger.error(e);
                                     me.twitchClient.say(channelConfig.channelName, `@${message.userName} you have entered invalid values for ${message.rewardTitle}`);
                                     me.apiClient.channelPoints.updateRedemptionStatusByIds(user, message.rewardId, [message.id], "CANCELED");
                                     return;
                                 }
                             }
                         }
-                        execute(message.userName, channelConfig.channelName, params, TWITCH_PLATFORM);
+                        if(commandConfig.execute){
+                            commandConfig.execute(message.userName, channelConfig.channelName, params, TWITCH_PLATFORM, me.config, me.logger, databaseManager, platformManager, effectManager);
+                        }
+                        else{
+                            effectManager.sendEffect(reward, message.userName, channelConfig.channelName, params, TWITCH_PLATFORM)
+                        }
                         //me.apiClient.channelPoints.updateRedemptionStatusByIds(user, message.rewardId, [message.id], "FULFILLED");
                     }
                     else {
                         me.twitchClient.say(channelConfig.channelName, `@${channelConfig.channelName} oh no, looks like channel point reward ${message.rewardTitle} is not a valid command, bad streamer.`);
                         me.apiClient.channelPoints.updateRedemptionStatusByIds(user, message.rewardId, [message.id], "CANCELED");
                     }
-                });
+                })
                 me.channelPointListener.push(handler);
             })
         }
@@ -84,36 +88,41 @@ export class TwitchManager {
     async createChannelPointRewards(broadcaster) {
         const me = this;
         await Object.keys(IN_GAME_EFFECTS).forEach(async (effect) => {
-            const commandCfg = ALL_COMMANDS[effect];
-            if (commandCfg !== undefined && !commandCfg.isDisabled && (!me.config.useChannelPoints || (!commandCfg.disableOnChannelPoints)) && (commandCfg.allowedPlatforms === undefined || commandCfg.allowedPlatforms.find((plat) => plat === TWITCH_PLATFORM) !== undefined)) {
-                const effectConfig = IN_GAME_EFFECTS[effect];
-                let cost = effectConfig.cost;
-                if (effectConfig.calculatedCost !== undefined) {
-                    if (effect === "statuseffect") {
-                        cost = effectConfig.calculatedCost("drunk");
+            try{
+                const commandCfg = ALL_COMMANDS[effect];
+                if (commandCfg !== undefined && !commandCfg.isDisabled && (!me.config.useChannelPoints || (!commandCfg.disableOnChannelPoints)) && (commandCfg.allowedPlatforms === undefined || commandCfg.allowedPlatforms.find((plat) => plat === TWITCH_PLATFORM) !== undefined)) {
+                    const effectConfig = IN_GAME_EFFECTS[effect];
+                    let cost = effectConfig.cost;
+                    if (effectConfig.calculatedCost !== undefined) {
+                        if (effect === "statuseffect") {
+                            cost = effectConfig.calculatedCost("drunk");
+                        }
+                        else if (effect === "quickhack") {
+                            cost = effectConfig.calculatedCost("disable-cyberware");
+                        }
+                        else if (effectConfig.max !== undefined) {
+                            cost = effectConfig.calculatedCost(effectConfig.max);
+                        }
+                        else {
+                            cost = effectConfig.calculatedCost();
+                        }
                     }
-                    else if (effect === "quickhack") {
-                        cost = effectConfig.calculatedCost("disable-cyberware");
+                    const color = '#' + (Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0');
+                    let cooldown = 60;
+                    if (cost >= 5000) {
+                        cooldown = 300;
                     }
-                    else if (effectConfig.max !== undefined) {
-                        cost = effectConfig.calculatedCost(effectConfig.max);
+                    cost = Math.floor(cost / 5); //To make this affordable
+                    if (cost <= 0) {
+                        cost = 100;
                     }
-                    else {
-                        cost = effectConfig.calculatedCost();
-                    }
+                    const data = { cost, title: effect, isEnabled: true, userInputRequired: commandCfg.hasParams, prompt: commandCfg.help, backgroundColor: color, globalCooldown: cooldown };
+                    me.logger.debug(`creating reward ${effect}\n${JSON.stringify(data, null, 4)}`);
+                    await me.apiClient.channelPoints.createCustomReward(broadcaster, data);
                 }
-                const color = '#' + (Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0');
-                let cooldown = 60;
-                if (cost >= 5000) {
-                    cooldown = 300;
-                }
-                cost = Math.floor(cost / 5); //To make this affordable
-                if (cost <= 0) {
-                    cost = 100;
-                }
-                const data = { cost, title: effect, isEnabled: true, userInputRequired: commandCfg.hasParams, prompt: commandCfg.help, backgroundColor: color, globalCooldown: cooldown };
-                me.logger.debug(`creating reward ${effect}\n${JSON.stringify(data, null, 4)}`);
-                await me.apiClient.channelPoints.createCustomReward(broadcaster, data);
+            }
+            catch(e){
+                me.logger.error(e)
             }
         })
 

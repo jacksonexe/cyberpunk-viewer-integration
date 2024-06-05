@@ -50,7 +50,7 @@ export const ALL_COMMANDS = {
       "help" : "Gives the player a wanted level, valid values are 1-5"
     },
     "quickhack": {
-      "help": `Lets you quick hack the player. Allowed values and cost ${Object.keys(ALLOWED_IN_GAME_QUICK_HACKS).map((status) => `${status}: ${ALLOWED_IN_GAME_QUICK_HACKS[status].cost} points`).join(", ")}`,
+      "help": `Lets you use the cyberdeck. Hacks ${Object.keys(ALLOWED_IN_GAME_QUICK_HACKS).map((status) => `${status}`).join(", ")}`,
       "hasParams": true,
       "parseParams": (param) => {
         const allowedHacks = Object.keys(ALLOWED_IN_GAME_QUICK_HACKS);

@@ -26,8 +26,8 @@ export class PlatformManager {
     }
 
     async init() {
-        await this.twitchClient.initClient(this.executeCommand);
-        this.cliClient.initClient(this.executeCommand);
+        await this.twitchClient.initClient(this.executeCommand, this.effectManager, this.databaseManager, this);
+        this.cliClient.initClient(this.executeCommand, this.effectManager);
     }
 
     executeCommand(username, userCommand, argument, channel, platform) {

@@ -13,7 +13,7 @@ export const ALLOWED_IN_GAME_QUICK_HACKS = {
     "disable-cyberware": {
       "cost": 200
     },
-    "cripple-movement": {
+    "slow-movement": {
       "cost": 200
     },
     "weapon-glitch": {

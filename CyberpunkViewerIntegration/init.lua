@@ -1,4 +1,5 @@
 --Created by Jackexe
+--Any code modification is allowed provided attribution is given
 Cron = require('External/Cron.lua')
 Json = require('External/json.lua')
 
@@ -6,7 +7,8 @@ Enabled = true
 CurrentIndex = 0
 Timer = nil
 HasInit = false
-ChatMessages = nil
+TimerText = nil
+
 
 List = {}
 function List.new()
@@ -72,6 +74,9 @@ end
 
 Queue = List.new()
 LastMessageQueue = List.new()
+QueueText = nil
+QueueTextList = List.new()
+QueueTimedTextList = List.new()
 
 function file_exists(file)
     local f = io.open(file, "rb")
@@ -111,15 +116,6 @@ function SetHostileRole(targetPuppet)
 
     targetPuppet:GetAttitudeAgent():SetAttitudeGroup('Hostile')
     targetPuppet:GetAttitudeAgent():SetAttitudeTowards(Game.GetPlayer():GetAttitudeAgent(), EAIAttitude.AIA_Hostile)
-
-    for _, ent in pairs(Spawn.spawnedNPCs) do
-        if ent.handle.IsNPC and ent.handle:IsNPC() then
-            ent.handle:GetAttitudeAgent():SetAttitudeTowards(targetPuppet:GetAttitudeAgent(), EAIAttitude.AIA_Hostile)
-        end
-    end
-
-    targetPuppet.isPlayerCompanionCached = false
-    targetPuppet.isPlayerCompanionCachedTimeStamp = 0
 
     local sensePreset = TweakDBInterface.GetReactionPresetRecord(TweakDBID.new("ReactionPresets.Ganger_Aggressive"))
     targetPuppet.reactionComponent:SetReactionPreset(sensePreset)
@@ -182,6 +178,21 @@ function spawnEnemy(character)
     end)
 end
 
+function CreateTimer(maxTimertime)
+    local elapsingTimer = maxTimertime
+    TimerText:SetText(elapsingTimer)
+    Cron.Every(1, function(timer)
+        elapsingTimer = elapsingTimer - 1
+        if(elapsingTimer < 0) then
+            Cron.Halt(timer)
+            TimerText:SetText("")
+        else
+            TimerText:SetText(elapsingTimer)
+        end
+    end)
+end
+
+
 function SpawnVehicle(vehicle, xOffset, yOffset, zOffset)
     local player = Game.GetPlayer()
     local pos = player:GetWorldPosition()
@@ -223,6 +234,53 @@ function SpawnVehicle(vehicle, xOffset, yOffset, zOffset)
     Cron.Every(0.5, timerfunc)
 end
 
+function SetQueueText() 
+    local arr = List.toArray(QueueTextList)
+    local arr2 = List.toArray(QueueTimedTextList)
+    local finalText = ""
+    for _, value in pairs(arr) do
+        finalText = finalText .. value .. "\n"
+    end
+    if(List.length(QueueTimedTextList) > 0 ) then
+        finalText = finalText .. "Queued Timers:\n"
+        for _, value in pairs(arr2) do
+            finalText = finalText .. "Queued " .. value["username"] .. " - " .. value["commandType"] .. "\n"
+        end
+    end
+    if(string.len(finalText) > 0) then
+        finalText = string.sub(finalText, 0, string.len(finalText) - 1)
+    end
+    QueueText:SetText(finalText)
+end
+
+function QueueUpcomingEffect(queuedItem)
+    List.pushleft(QueueTextList, queuedItem)
+    if(List.length(QueueTextList) > 5) then
+        List.popright(QueueTextList)
+    end
+    SetQueueText()
+end
+
+function QueueUpcomingTimedEffect(queuedItem)
+    List.pushleft(QueueTimedTextList, queuedItem)
+    SetQueueText()
+end
+
+OutstandingTimers = List.new()
+ActiveTimerTask = nil
+
+function HandleTimerFinished()
+    if(List.isEmpty(OutstandingTimers)) then
+        ActiveTimerTask = nil
+    else
+        local timerTask = List.popleft(OutstandingTimers)
+        List.popleft(QueueTimedTextList)
+        SetQueueText()
+        ActiveTimerTask = timerTask()
+    end
+end
+
+CurrentFOV = nil
 if Enabled then
     registerForEvent("onInit", function()
         local file, err = io.open("currentLogs.log", 'w')
@@ -232,25 +290,50 @@ if Enabled then
         else
             print("error:", err)
         end
+        Observe("LocomotionEventsTransition", "OnExit", function(evt, stateContext, scriptInterface)
+            if(CurrentFOV ~= nil) then
+                local fpp = Game.GetPlayer():GetFPPCameraComponent()
+                fpp:SetFOV(CurrentFOV)
+            end
+        end)
         Observe('PlayerPuppet', "OnTakeControl", function(player)
             if HasInit == false then
                 HasInit = true
                 local inkSystem = Game.GetInkSystem();
                 local hudRoot = inkSystem:GetLayer("inkHUDLayer"):GetVirtualWindow();
-                ChatMessages = inkText.new();
-                ChatMessages:SetText("Latest Message:\n");
-                ChatMessages:SetFontFamily("base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily");
-                ChatMessages:SetFontStyle("Bold");
-                ChatMessages:SetFontSize(20);
-                ChatMessages:SetTintColor(255, 255, 255, 255);
-                ChatMessages:SetAnchor(inkEAnchor.CenterLeft);
-                ChatMessages:SetAnchorPoint(-0.5, 0);
-                --ChatMessages:Reparent(hudRoot);
-                Cron.Every(10, { tick = 1 }, function(timer)
+                TimerText = inkText.new();
+                TimerText:SetText("");
+                TimerText:SetFontFamily("base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily");
+                TimerText:SetFontStyle("Bold");
+                TimerText:SetFontSize(50);
+                TimerText:SetTintColor(255, 255, 255, 255);
+                TimerText:SetAnchor(inkEAnchor.TopLeft);
+                TimerText:SetAnchorPoint(-0.5, -5.0);
+                TimerText:Reparent(hudRoot);
+
+                QueueText = inkText.new();
+                QueueText:SetText("");
+                QueueText:SetFontFamily("base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily");
+                QueueText:SetFontStyle("Bold");
+                QueueText:SetFontSize(20);
+                QueueText:SetTintColor(255, 255, 255, 255);
+                QueueText:SetAnchor(inkEAnchor.CenterLeft);
+                QueueText:SetAnchorPoint(-0.1, 0.1);
+                QueueText:Reparent(hudRoot);
+
+                Cron.Every(5, { tick = 1 }, function(timer)
                     Timer = timer
-                    if List.isEmpty(Queue) then
+                    local blackboard = Game.GetBlackboardSystem():Get( Game.GetAllBlackboardDefs().UI_System );
+		            local uiSystemBB = Game.GetAllBlackboardDefs().UI_System;
+                    local inMenu =  blackboard:GetBool(uiSystemBB.IsInMenu)
+                    local bds = Game.GetScriptableSystemsContainer():Get( 'BraindanceSystem' ) 
+                    if List.isEmpty(Queue) or (bds ~= nil and bds.isInBraindance) or inMenu then
                         return
                     end
+                    if not List.isEmpty(QueueTextList) then
+                        List.popright(QueueTextList)
+                    end
+                    SetQueueText()
                     local v = List.popleft(Queue)
                     local cType = v["commandType"]
                     if cType == "MESSAGE" then
@@ -263,7 +346,7 @@ if Enabled then
                         for _, value in pairs(arr) do
                             finalMessages = finalMessages .. "\n\n\t" .. TruncateString(value)
                         end
-                        ChatMessages:SetText(finalMessages);
+                        --ChatMessages:SetText(finalMessages);
                         Game.GetPlayer():SetWarningMessage(v)
                     else
                         if cType == "takemoney" then
@@ -300,24 +383,29 @@ if Enabled then
                                     " sent the cops at level " .. amount .. ".")
                             end
                         elseif cType == "quickhack" then
-                            local amount = v["amount"]
+                            local amount = string.lower(v["amount"])
                             local hack = ""
-                            if amount == "overload" then
-                                hack = "BaseStatusEffect.OverloadLevel4"
+                            if amount == "short-circuit" then
+                                hack = "NetrunnerActions.CoverHackOverload_inline4"
                             elseif amount == "overheat" then
-                                hack = "BaseStatusEffect.OverheatLevel4"
+                                hack = "NetrunnerActions.HackOverheat_inline4"
+                            elseif amount == "reboot-optics" then
+                                hack = "NetrunnerActions.HackBlind_inline5"
+                            elseif amount == "disable-cyberware" then
+                                hack = "NetrunnerActions.HackCyberware_inline5"
+                            elseif amount == "cripple-movement" or amount == "slow-movement" then
+                                hack = "NetrunnerActions.HackLocomotion_inline5"
+                            elseif amount == "weapon-glitch" then
+                                hack = "NetrunnerActions.HackWeaponMalfunction_inline5"
                             end
                             local player = Game.GetPlayer()
-                            local evt = gameeventsApplyStatusEffectEvent.new()
-                            local staticData = TweakDB:GetRecord("AIQuickHackStatusEffect.HackBlind");
-                            evt.instigatorEntityID = player:GetEntityID()
-                            evt.isAppliedOnSpawn = true
-                            evt.isNewApplication = true
-                            evt.staticData = staticData
-                            player['gamedataOnHackTargetEvent']()
-                            Game['gameRPGManager::CreateStatModifier;gamedataStatTypegameStatModifierTypeFloat'](
-                                'Quality', 'Additive', qualityValue)
-                            StatusEffectHelper.ApplyStatusEffect(Game.GetPlayerObject(), hack, 0);
+                            local evt = HackTargetEvent.new()
+                            local record = TweakDBInterface.GetAISubActionQuickHackRecord(hack)
+                            evt.targetID = player:GetEntityID();
+                            evt.netrunnerID = player:GetEntityID();
+                            evt.objectRecord = record:ActionResult();
+                            evt.settings.isRevealPositionAction = true
+                            player:QueueEvent( evt );
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " hacked you with " .. amount .. ".")
                         elseif cType == "killplayer" then
                             Game.GetPlayer():OnDied()
@@ -345,7 +433,8 @@ if Enabled then
                                 for _, entities in ipairs(parts) do
                                     local target = entities:GetComponent():GetEntity()
                                     if GameObject.IsVehicle(target) then
-                                        if count < maxVehicles and (playerVehicle == nil or vc:GetEntityID() ~= playerVehicle:GetEntityID()) then
+                                        
+                                        if count < maxVehicles then
                                             local evt = gameDeathEvent.new()
                                             evt.instigator = player
                                             target:GetVehicleComponent():OnDeath(evt)
@@ -383,7 +472,7 @@ if Enabled then
                             end
                             player:SetWarningMessage(v["username"] .. " popped some tires.")
                         elseif cType == "tankrain" then
-                            for i = 1, 10, 1 do
+                            for i = 1, 3, 1 do
                                 SpawnVehicle("Vehicle.v_standard3_militech_hellhound_player", math.random(1, 5),
                                     math.random(1, 5), math.random(2, 50))
                             end
@@ -395,42 +484,58 @@ if Enabled then
                             local number = 4
                             if amount == "frozen" then
                                 status = "BaseStatusEffect.PlayerMovementLocked"
-                            elseif amount == "blind" then
-                                status = "BaseStatusEffect.Blind"
                             elseif amount == "bleeding" then
                                 status = "BaseStatusEffect.Bleeding"
                             elseif amount == "drunk" then
                                 status = "BaseStatusEffect.Drunk"
                                 duration = 60
                             end
-                            for i = 1, number, 1 do
-                                StatusEffectHelper.ApplyStatusEffect(Game.GetPlayerObject(), status, 0);
-                            end
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " made you get " .. amount .. ".")
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
                                 for i = 1, number, 1 do
-                                    StatusEffectHelper.RemoveStatusEffect(Game.GetPlayerObject(), status);
+                                    StatusEffectHelper.ApplyStatusEffect(Game.GetPlayerObject(), status, 0);
                                 end
-                            end)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " made you get " .. amount .. ".")
+                                CreateTimer(duration)
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    for i = 1, number, 1 do
+                                        StatusEffectHelper.RemoveStatusEffect(Game.GetPlayerObject(), status);
+                                    end
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "slowdown" then
                             local amount = v["amount"]
                             local duration = v["duration"]
-                            Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", amount)
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " slowed you down a bit.")
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
-                                Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", 1.0)
-                            end)
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", amount)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " slowed you down a bit.")
+                                CreateTimer(duration)
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", 1.0)
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "speedup" then
                             local amount = v["amount"]
                             local duration = v["duration"]
-                            Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", amount)
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " speed you up a bit.")
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
-                                Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", 1.0)
-                            end)
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", amount)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " speed you up a bit.")
+                                CreateTimer(duration)
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    Game.GetTimeSystem():SetTimeDilationOnLocalPlayerZero("", 1.0)
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "teleport" then
                             local amount = v["amount"]
                             Game.TeleportPlayerToPosition(amount.x, amount.y, amount.z)
@@ -495,35 +600,58 @@ if Enabled then
                             player:SetWarningMessage(v["username"] .. " gave you a shiny new gun.")
                         elseif cType == "upsidedown" then
                             local duration = v["duration"]
-                            local fpp = Game.GetPlayer():GetFPPCameraComponent()
-                            local curRot = fpp:GetLocalOrientation():ToEulerAngles()
-                            curRot.roll = 180
-                            fpp:SetLocalOrientation(curRot:ToQuat())
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
-                                fpp:SetLocalOrientation(Quaternion.new(0.0, 0.0, 0.0, 1.0))
-                            end)
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " flipped the camera.")
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                local fpp = Game.GetPlayer():GetFPPCameraComponent()
+                                local curRot = fpp:GetLocalOrientation():ToEulerAngles()
+                                curRot.roll = 180
+                                fpp:SetLocalOrientation(curRot:ToQuat())
+                                CreateTimer(duration)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " flipped the camera.")
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    fpp:SetLocalOrientation(Quaternion.new(0.0, 0.0, 0.0, 1.0))
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "doomvision" then
                             local duration = v["duration"]
-                            local fpp = Game.GetPlayer():GetFPPCameraComponent()
-                            local defaultFOV = fpp:GetFOV()
-                            fpp:SetFOV(120)
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
-                                fpp:SetFOV(defaultFOV)
-                            end)
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you doom vision.")
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                local fpp = Game.GetPlayer():GetFPPCameraComponent()
+                                local defaultFOV = fpp:GetFOV()
+                                CurrentFOV = 120
+                                fpp:SetFOV(CurrentFOV)
+                                CreateTimer(duration)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you doom vision.")
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    CurrentFOV = nil
+                                    
+                                    fpp:SetFOV(defaultFOV)
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "preyvision" then
                             local duration = v["duration"]
-                            local fpp = Game.GetPlayer():GetFPPCameraComponent()
-                            local defaultFOV = fpp:GetFOV()
-                            fpp:SetFOV(2)
-                            Cron.Every(duration, { tick = 1 }, function(timer)
-                                Cron.Halt(timer);
-                                fpp:SetFOV(defaultFOV)
-                            end)
-                            Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you prey vision.")
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                local fpp = Game.GetPlayer():GetFPPCameraComponent()
+                                local defaultFOV = fpp:GetFOV()
+                                CurrentFOV = 2
+                                fpp:SetFOV(CurrentFOV)
+                                CreateTimer(duration)
+                                Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you prey vision.")
+                                return Cron.Every(duration, { tick = 1 }, function(timer)
+                                    Cron.Halt(timer);
+                                    CurrentFOV = nil
+                                    fpp:SetFOV(defaultFOV)
+                                    HandleTimerFinished()
+                                end)
+                            end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "smashing" then
                             spawnEnemy("Character.main_boss_adam_smasher")
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " summoned Smasher.")
@@ -557,27 +685,44 @@ if Enabled then
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " took your ammo.")
                         elseif cType == "infiniteammo" then
                             local duration = v["duration"]
-                            local im = Game.GetInventoryManager()
-                            if (im:HasEquipmentStateFlag( gameEEquipmentManagerState.InfiniteAmmo) == false) then
-                                im:AddEquipmentStateFlag(gameEEquipmentManagerState.InfiniteAmmo)
-                                Cron.Every(duration, { tick = 1 }, function(timer)
-                                    Cron.Halt(timer);
-                                    im:RemoveEquipmentStateFlag(gameEEquipmentManagerState.InfiniteAmmo)
-                                end)
-                                Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you infinite ammo.")
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                local im = Game.GetInventoryManager()
+                                if (im:HasEquipmentStateFlag( gameEEquipmentManagerState.InfiniteAmmo) == false) then
+                                    im:AddEquipmentStateFlag(gameEEquipmentManagerState.InfiniteAmmo)
+                                    CreateTimer(duration)
+                                    Game.GetPlayer():SetWarningMessage(v["username"] .. " gave you infinite ammo.")
+                                    return Cron.Every(duration, { tick = 1 }, function(timer)
+                                        Cron.Halt(timer);
+                                        im:RemoveEquipmentStateFlag(gameEEquipmentManagerState.InfiniteAmmo)
+                                        HandleTimerFinished()
+                                    end)
+                                end
+                                return nil
                             end
+                            List.pushright(OutstandingTimers, timerTask)
                         elseif cType == "invincible" then
                             local duration = v["duration"]
-                            local player = Game.GetPlayer()
-                            local gm = Game.GetGodModeSystem()
-                            if (gm:HasGodMode(player:GetEntityID(), gameGodModeType.Immortal) == false) then
-                                gm:AddGodMode(player:GetEntityID(), gameGodModeType.Immortal, 'JohnnyReplacerSequence')
-                                Cron.Every(duration, { tick = 1 }, function(timer)
-                                    Cron.Halt(timer);
-                                    gm:RemoveGodMode(player:GetEntityID(), gameGodModeType.Immortal, 'JohnnyReplacerSequence')
-                                end)
-                                Game.GetPlayer():SetWarningMessage(v["username"] .. " made you immortal.")
+                            QueueUpcomingTimedEffect(v)
+                            local timerTask = function()
+                                local player = Game.GetPlayer()
+                                local gm = Game.GetGodModeSystem()
+                                if (gm:HasGodMode(player:GetEntityID(), gameGodModeType.Immortal) == false) then
+                                    gm:AddGodMode(player:GetEntityID(), gameGodModeType.Immortal, 'JohnnyReplacerSequence')
+                                    CreateTimer(duration)
+                                    Game.GetPlayer():SetWarningMessage(v["username"] .. " made you immortal.")
+                                    return Cron.Every(duration, { tick = 1 }, function(timer)
+                                        Cron.Halt(timer);
+                                        gm:RemoveGodMode(player:GetEntityID(), gameGodModeType.Immortal, 'JohnnyReplacerSequence')
+                                        HandleTimerFinished()
+                                    end)
+                                end
+                                return nil
                             end
+                            List.pushright(OutstandingTimers, timerTask)
+                        end
+                        if(List.length(OutstandingTimers) == 1 and ActiveTimerTask == nil) then
+                            HandleTimerFinished()
                         end
                     end
                 end)
@@ -588,6 +733,12 @@ if Enabled then
             if Timer ~= nil then
                 Cron.Halt(Timer)
             end
+            if(ActiveTimerTask ~= nil) then
+                Cron.Halt(ActiveTimerTask)
+            end
+            OutstandingTimers = List.new()
+            QueueTextList = List.new()
+            QueueTimedTextList = List.new()
         end)
     end)
     registerForEvent('onUpdate', function(delta)
@@ -595,7 +746,9 @@ if Enabled then
         local lines = lines_from("currentLogs.log")
         for _, v in pairs(lines) do
             if (string.len(v) > 0) then
-                List.pushright(Queue, json.decode(v))
+                local effectConfig = json.decode(v)
+                QueueUpcomingEffect("Queued " .. effectConfig["username"] .. " - " .. effectConfig["commandType"])
+                List.pushright(Queue, effectConfig)
             end
         end
     end)
