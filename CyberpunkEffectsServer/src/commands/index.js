@@ -102,7 +102,8 @@ export const ALL_COMMANDS = {
       "help": `All tires around go boom for ${IN_GAME_EFFECTS.carsbepopin.cost} points`
     },
     "tankrain": {
-      "help": `Its raining tanks for ${IN_GAME_EFFECTS.tankrain.cost}`
+      "help": `Its raining tanks for ${IN_GAME_EFFECTS.tankrain.cost}`,
+      "isDisabled": true
     },
     "dropweapons": {
       "help": `Forces the player to drop all weapons for ${IN_GAME_EFFECTS.dropweapons.cost}`
@@ -117,7 +118,8 @@ export const ALL_COMMANDS = {
       "help": `Heals the player to full for ${IN_GAME_EFFECTS.heal.cost}`
     },
     "refillammo": {
-      "help": `Refills all the players ammo for ${IN_GAME_EFFECTS.refillammo.cost}`
+      "help": `Refills all the players ammo for ${IN_GAME_EFFECTS.refillammo.cost}`,
+      "isDisabled": true
     },
     "removeammo": {
       "help": `Removes all the players ammo for ${IN_GAME_EFFECTS.removeammo.cost}`
@@ -126,6 +128,7 @@ export const ALL_COMMANDS = {
       "help": `Gives the player infinite ammo for ${IN_GAME_EFFECTS.infiniteammo.cost} for ${IN_GAME_EFFECTS.infiniteammo.duration} seconds`
     },
     "immortal": {
-      "help": `Toggles god mode for ${IN_GAME_EFFECTS.immortal.cost} for ${IN_GAME_EFFECTS.immortal.duration} seconds`
+      "help": `Toggles god mode for ${IN_GAME_EFFECTS.immortal.cost} for ${IN_GAME_EFFECTS.immortal.duration} seconds`,
+      "isDisabled": true
     }
   }
