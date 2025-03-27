@@ -51,7 +51,7 @@ to work, I ran into issues with lua's networking support inside cyberpunk engine
 * If there are any issues, all logs are logged to `app.log` in the server directory
 * Twitch Channel point rewards are created automatically for you so please do not create them manually as the server needs to manage them. You can choose to edit them though if you want something different, you just can't change the command name
 
-#List of effects
+# List of effects
 |                |Description                                        |Input                                                                                  |
 |----------------|---------------------------------------------------|---------------------------------------------------------------------------------------|
 |takemoney       |Steal money from the player                        |Viewer can enter custom amount                                                         |
