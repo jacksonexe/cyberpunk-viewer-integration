@@ -382,6 +382,8 @@ if Enabled then
                                 Game.GetPlayer():SetWarningMessage(v["username"] ..
                                     " sent the cops at level " .. amount .. ".")
                             end
+                        elseif cType == "blackhole" then
+                            
                         elseif cType == "quickhack" then
                             local amount = string.lower(v["amount"])
                             local hack = ""
@@ -659,7 +661,7 @@ if Enabled then
                             spawnEnemy("Character.q302_militech_chimera")
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " summoned the chimera.")
                         elseif cType == "kurt" then
-                            spawnEnemy("Character.kurtz")
+                            spawnEnemy("Character.q304_kurt_miniboss")
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " summoned Kurt.")
                         elseif cType == "heal" then
                             local maxHealth = Game.GetStatPoolsSystem():GetStatPoolMaxPointValue( Game.GetPlayer():GetEntityID(), gamedataStatPoolType.Health );
@@ -734,7 +736,7 @@ if Enabled then
                 Cron.Halt(Timer)
             end
             if(ActiveTimerTask ~= nil) then
-                Cron.Halt(ActiveTimerTask)
+                HandleTimerFinished()
             end
             OutstandingTimers = List.new()
             QueueTextList = List.new()

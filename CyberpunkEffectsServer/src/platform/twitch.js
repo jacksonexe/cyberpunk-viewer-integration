@@ -23,7 +23,6 @@ export class TwitchManager {
             channels: Object.keys(this.config.channels)
         });
 
-
         this.channelPointListener = [];
         if (this.config.useChannelPoints) {
             this.authProvider = new StaticAuthProvider(this.config.twitchCredentials.clientId, this.config.twitchCredentials.clientSecret, ['channel:read:redemptions', 'channel:manage:redemptions']);
@@ -32,9 +31,8 @@ export class TwitchManager {
                     minLevel: 'debug'
                 }
             });
-
-            const pubSubClient = new PubSubClient({ authProvider: this.authProvider });
             const me = this;
+            const pubSubClient = new PubSubClient({ authProvider: this.authProvider });
             await Object.keys(this.config.channels).forEach(async (channel) => {
                 me.logger.info(`Creating channel point listener for ${channel}`);
                 const user = await me.apiClient.users.getUserByName(channel);
@@ -42,6 +40,12 @@ export class TwitchManager {
                     await me.createChannelPointRewards(user);
                 }
                 const channelConfig = me.config.channels[channel];
+                if(me.config.periodicReminder){
+                    me.twitchClient.say(channelConfig.channelName, `Chooms can use channel points to effect the game. Check them out in the channel points section.`);
+                    me.timer = setInterval(() => {
+                        me.twitchClient.say(channelConfig.channelName, `Chooms can use channel points to effect the game. Check them out in the channel points section.`);
+                    }, 600000);
+                }
                 const handler = pubSubClient.onRedemption(channelConfig.channelId, async (message) => {
                     const reward = message.rewardTitle.toLowerCase().replace(/ /g, "");
                     const commandConfig = ALL_COMMANDS[reward];
@@ -158,6 +162,10 @@ export class TwitchManager {
 
         if (!this.config.useChannelPoints) {
             await this.db.close();
+        }
+        if(this.timer !== undefined){
+            clearInterval(this.timer);
+            this.timer = undefined;
         }
     }
 
