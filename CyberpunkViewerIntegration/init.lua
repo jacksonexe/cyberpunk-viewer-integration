@@ -406,6 +406,7 @@ if Enabled then
                             evt.targetID = player:GetEntityID();
                             evt.netrunnerID = player:GetEntityID();
                             evt.objectRecord = record:ActionResult();
+                            evt.settings.showDirectionalIndicator = false
                             evt.settings.isRevealPositionAction = true
                             player:QueueEvent( evt );
                             Game.GetPlayer():SetWarningMessage(v["username"] .. " hacked you with " .. amount .. ".")
@@ -622,6 +623,7 @@ if Enabled then
                             QueueUpcomingTimedEffect(v)
                             local timerTask = function()
                                 local fpp = Game.GetPlayer():GetFPPCameraComponent()
+                                
                                 local defaultFOV = fpp:GetFOV()
                                 CurrentFOV = 120
                                 fpp:SetFOV(CurrentFOV)
@@ -741,6 +743,14 @@ if Enabled then
             OutstandingTimers = List.new()
             QueueTextList = List.new()
             QueueTimedTextList = List.new()
+        end)
+
+        Observe("GameObject", "OnAttach", function(object)
+            
+        end)
+
+        Observe("GameObject", "OnDetach", function(object)
+            
         end)
     end)
     registerForEvent('onUpdate', function(delta)
